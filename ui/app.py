@@ -22,11 +22,11 @@ class ChatApp:
         
     def create_ui(self) -> None:
         """Create the main UI."""
-        ui.page_title("MyAgent - RAG Chatbot")
+        ui.page_title("workingAgent - RAG Chatbot")
         
         with ui.column().classes("w-full max-w-4xl mx-auto p-4 gap-4"):
             # Header
-            ui.label("MyAgent - Document QA Chatbot").classes("text-2xl font-bold")
+            ui.label("workingAgent - Document QA Chatbot").classes("text-2xl font-bold")
             ui.label("Ask questions and get streaming responses").classes("text-gray-600")
             
             # PDF Upload section
@@ -34,7 +34,7 @@ class ChatApp:
                 ui.label("Upload PDF Document").classes("font-bold mb-2")
                 with ui.row().classes("w-full gap-2 items-center"):
                     self.upload_label = ui.label("No PDF uploaded").classes("text-sm text-gray-600")
-                    ui.upload(
+                    self.upload_component = ui.upload(
                         on_upload=self.handle_pdf_upload,
                         auto_upload=True,
                         max_file_size=10 * 1024 * 1024,  # 10MB
@@ -148,7 +148,7 @@ class ChatApp:
         self.status_label.text = "Uploading PDF..."
         
         try:
-            # NiceGUI UploadEventArguments has a 'file' attribute of type FileUpload
+            # NiceGUI upload event structure
             if not hasattr(e, 'file'):
                 self.status_label.text = "Upload failed - no file in event"
                 self.add_message("error", "PDF upload error: No file in upload event")
@@ -157,22 +157,167 @@ class ChatApp:
             uploaded_file = e.file
             file_name = getattr(uploaded_file, 'name', 'document.pdf')
             
-            # Read file content - NiceGUI saves files to a temporary path
-            file_path = getattr(uploaded_file, 'path', None) or getattr(uploaded_file, 'name', None)
+            # Fix double extension if present
+            if file_name.endswith('.pdf.pdf'):
+                file_name = file_name[:-4]
             
-            if not file_path:
-                self.status_label.text = "Upload failed - could not find file path"
-                self.add_message("error", "PDF upload error: Could not find file path")
-                return
+            # NiceGUI upload: read file content
+            # NiceGUI with auto_upload=True saves files to a temp directory
+            # We need to find the actual file location
+            file_content = None
+            import os
+            import tempfile
             
-            # Read file content
-            with open(file_path, "rb") as f:
-                file_content = f.read()
+            # Method 1: Try reading as file-like object (most common)
+            if hasattr(uploaded_file, 'read'):
+                try:
+                    read_result = uploaded_file.read()
+                    # Check if it's a coroutine (async method)
+                    if asyncio.iscoroutine(read_result):
+                        file_content = await read_result
+                    else:
+                        file_content = read_result
+                    # Reset file pointer if possible
+                    if hasattr(uploaded_file, 'seek'):
+                        seek_result = uploaded_file.seek(0)
+                        if asyncio.iscoroutine(seek_result):
+                            await seek_result
+                except Exception:
+                    pass
+            
+            # Method 2: Try content attribute
+            if not file_content and hasattr(uploaded_file, 'content'):
+                content = uploaded_file.content
+                if isinstance(content, bytes):
+                    file_content = content
+                elif hasattr(content, 'read'):
+                    read_result = content.read()
+                    # Check if it's a coroutine (async method)
+                    if asyncio.iscoroutine(read_result):
+                        file_content = await read_result
+                    else:
+                        file_content = read_result
+                elif isinstance(content, str):
+                    file_content = content.encode('utf-8')
+            
+            # Method 3: Try to find file in NiceGUI's upload directory
+            # NiceGUI typically saves to a temp directory or uploads folder
+            if not file_content and hasattr(uploaded_file, 'path'):
+                file_path = uploaded_file.path
+                
+                # If it's just a filename, try to find it in common locations
+                if file_path and not (os.sep in file_path or '/' in file_path or '\\' in file_path):
+                    # It's just a filename, search for it
+                    possible_dirs = [
+                        tempfile.gettempdir(),
+                        os.path.join(tempfile.gettempdir(), 'nicegui'),
+                        os.path.join(os.getcwd(), 'uploads'),
+                        os.path.join(os.path.expanduser('~'), '.nicegui', 'uploads'),
+                        # Also check NiceGUI's default upload location
+                        os.path.join(os.path.expanduser('~'), 'AppData', 'Local', 'Temp'),
+                        os.path.join('C:', 'Users', os.getenv('USERNAME', ''), 'AppData', 'Local', 'Temp'),
+                    ]
+                    
+                    # Also try searching recursively in temp directory (last resort)
+                    for base_dir in possible_dirs:
+                        if os.path.exists(base_dir):
+                            full_path = os.path.join(base_dir, file_path)
+                            if os.path.exists(full_path) and os.path.isfile(full_path):
+                                try:
+                                    with open(full_path, "rb") as f:
+                                        file_content = f.read()
+                                    break
+                                except Exception:
+                                    continue
+                    
+                    # If still not found, try searching for files with similar names in temp
+                    if not file_content:
+                        try:
+                            import glob
+                            # Search for files matching the name pattern in temp directory
+                            search_patterns = [
+                                os.path.join(tempfile.gettempdir(), f"*{file_path}*"),
+                                os.path.join(tempfile.gettempdir(), "**", file_path),
+                            ]
+                            for pattern in search_patterns:
+                                matches = glob.glob(pattern, recursive=True)
+                                if matches:
+                                    try:
+                                        with open(matches[0], "rb") as f:
+                                            file_content = f.read()
+                                        break
+                                    except Exception:
+                                        continue
+                        except Exception:
+                            pass
+                
+                # If it's a full path, try reading it directly
+                elif file_path and (os.sep in file_path or '/' in file_path or '\\' in file_path):
+                    if os.path.exists(file_path) and os.path.isfile(file_path):
+                        try:
+                            with open(file_path, "rb") as f:
+                                file_content = f.read()
+                        except Exception:
+                            pass
             
             if not file_content:
-                self.status_label.text = "Upload failed - file is empty"
-                self.add_message("error", "PDF upload error: File is empty")
+                # Last resort: Try to get file from upload component's internal state
+                # NiceGUI might store files differently
+                try:
+                    # Try accessing through the upload component
+                    if hasattr(self.upload_component, '_uploaded_files'):
+                        uploaded_files = self.upload_component._uploaded_files
+                        if uploaded_files and len(uploaded_files) > 0:
+                            last_file = uploaded_files[-1]
+                            if hasattr(last_file, 'read'):
+                                read_result = last_file.read()
+                                if asyncio.iscoroutine(read_result):
+                                    file_content = await read_result
+                                else:
+                                    file_content = read_result
+                            elif hasattr(last_file, 'content'):
+                                content = last_file.content
+                                if isinstance(content, bytes):
+                                    file_content = content
+                                elif hasattr(content, 'read'):
+                                    read_result = content.read()
+                                    if asyncio.iscoroutine(read_result):
+                                        file_content = await read_result
+                                    else:
+                                        file_content = read_result
+                except Exception:
+                    pass
+            
+            if not file_content:
+                # Debug: show what we have - this will help us understand the structure
+                file_type = type(uploaded_file).__name__
+                all_attrs = dir(uploaded_file)
+                # Get both callable and non-callable attributes
+                attrs = []
+                for attr in all_attrs:
+                    if not attr.startswith('_'):
+                        try:
+                            val = getattr(uploaded_file, attr)
+                            if not callable(val):
+                                attrs.append(f"{attr}={type(val).__name__}")
+                        except:
+                            pass
+                
+                # Also try to print the actual object structure
+                import json
+                try:
+                    obj_repr = str(uploaded_file)
+                except:
+                    obj_repr = "Could not represent object"
+                
+                error_msg = f"PDF upload error: Could not read file.\nType: {file_type}\nAttributes: {', '.join(attrs[:10])}\nObject: {obj_repr[:200]}"
+                self.add_message("error", error_msg)
+                self.status_label.text = "Upload failed - see error details"
                 return
+            
+            # Ensure bytes
+            if isinstance(file_content, str):
+                file_content = file_content.encode('utf-8')
             
             # Upload to backend
             async with httpx.AsyncClient(timeout=30.0) as client:
@@ -212,7 +357,7 @@ def main() -> None:
     """Run the NiceGUI app."""
     app = ChatApp()
     app.create_ui()
-    ui.run(port=8080, title="MyAgent Chatbot", show=False)
+    ui.run(port=8080, title="workingAgent Chatbot", show=False)
 
 
 # Remove guard to allow multiprocessing (required by NiceGUI)

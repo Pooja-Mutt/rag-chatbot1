@@ -8,7 +8,7 @@ import os
 
 def main():
     """Run both FastAPI and NiceGUI."""
-    print("Starting MyAgent application...")
+    print("Starting workingAgent application...")
     print("=" * 50)
     
     # Check if .env exists

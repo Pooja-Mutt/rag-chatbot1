@@ -20,7 +20,7 @@ if not os.getenv("OPENAI_API_KEY"):
     print("You can copy .env.example to .env and add your key")
 
 app = FastAPI(
-    title="MyAgent - RAG Chatbot",
+    title="workingAgent - RAG Chatbot",
     description="Document QA Chatbot with streaming responses",
     version="0.1.0",
 )
@@ -44,7 +44,7 @@ class ChatRequest(BaseModel):
 @app.get("/")
 async def root():
     """Health check endpoint."""
-    return {"status": "healthy", "message": "MyAgent API is running"}
+    return {"status": "healthy", "message": "workingAgent API is running"}
 
 
 @app.get("/health")

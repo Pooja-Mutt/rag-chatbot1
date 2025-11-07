@@ -1,18 +1,29 @@
-# MyAgent - RAG Chatbot
+# workingAgent - RAG Chatbot
 
-Minimal Document QA Chatbot with streaming responses and PDF upload.
+QA Chatbot with streaming responses and PDF upload.
 
-## Setup
+## Setup & Run
 
 ```bash
+# 1. Create virtual environment
 python -m venv venv
 source venv/bin/activate  # Windows: venv\Scripts\activate
+
+# 2. Install dependencies
 pip install -e ".[dev]"
-cp .env.example .env  # Add OPENAI_API_KEY
+
+# 3. Configure OpenAI API key
+cp .env.example .env
+# Edit .env and add your OPENAI_API_KEY
+
+# 4. Run the application
 python run.py
 ```
 
-Open http://localhost:8080
+**Access:**
+
+- UI: http://localhost:8080
+- API Docs: http://localhost:8000/docs
 
 ## Architecture
 
@@ -37,4 +48,3 @@ follow the white rabbit
 ```bash
 pytest tests/ -v
 ```
-

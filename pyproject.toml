@@ -1,5 +1,5 @@
 [project]
-name = "myagent"
+name = "workingagent"
 version = "0.1.0"
 description = "RAG Chatbot with FastAPI, Agno, and NiceGUI"
 requires-python = ">=3.13"
