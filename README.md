@@ -46,16 +46,6 @@ follow the white rabbit
 ## Testing
 
 ```bash
-pytest tests/ -v
-```
-
-## Deployment
-
-See [AWS_DEPLOYMENT.md](AWS_DEPLOYMENT.md) for AWS deployment options.
-
-## Testing
-
-```bash
 # Run all tests
 pytest tests/ -v
 
@@ -69,3 +59,23 @@ pytest tests/ -v
 1. Start app: `python run.py`
 2. Open: http://localhost:8080
 3. Upload PDF → Ask question → Verify streaming works
+
+## Enhancements
+
+- Clear Chat & Remove PDF buttons
+- Better error messages & input validation
+- PDF metadata display (pages, size, chars)
+- Enhanced async status updates
+- Performance optimizations
+
+See [CHANGELOG.md](CHANGELOG.md) for details.
+
+## Deployment
+
+See [AWS_DEPLOYMENT.md](AWS_DEPLOYMENT.md) for AWS deployment options.
+
+**Quick AWS Test:**
+
+1. Deploy to EC2 (follow AWS_DEPLOYMENT.md)
+2. Open: `http://YOUR_EC2_IP:8080`
+3. Test: Upload PDF → Ask question → Verify streaming
