@@ -200,6 +200,6 @@ def main() -> None:
     ui.run(port=8080, title="MyAgent Chatbot", show=False)
 
 
-if __name__ == "__main__":
+if __name__ in {"__main__", "__mp_main__"}:
     main()
 
