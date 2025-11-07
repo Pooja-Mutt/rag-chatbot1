@@ -148,21 +148,39 @@ class ChatApp:
         self.status_label.text = "Uploading PDF..."
         
         try:
-            # NiceGUI upload event provides file info
-            if not e.uploaded_files:
+            # NiceGUI upload - e is the upload event, files are accessible via e.sender
+            upload_widget = e.sender
+            
+            # Get uploaded files from the widget
+            # NiceGUI stores files in upload_widget.uploaded_files list
+            uploaded_files = getattr(upload_widget, 'uploaded_files', [])
+            
+            if not uploaded_files:
                 self.status_label.text = "No file selected"
                 return
             
-            uploaded_file = e.uploaded_files[0]
-            file_path = uploaded_file.name
+            # Get the first uploaded file
+            uploaded_file = uploaded_files[0]
+            file_name = getattr(uploaded_file, 'name', 'document.pdf')
+            
+            # Read file content - NiceGUI saves to a temp path
+            file_path = getattr(uploaded_file, 'path', None) or getattr(uploaded_file, 'name', None)
+            
+            if not file_path:
+                self.status_label.text = "Could not find file path"
+                return
             
             # Read file content
             with open(file_path, "rb") as f:
                 file_content = f.read()
             
+            if not file_content:
+                self.status_label.text = "File is empty"
+                return
+            
             # Upload to backend
             async with httpx.AsyncClient(timeout=30.0) as client:
-                files = {"file": (uploaded_file.name, file_content, "application/pdf")}
+                files = {"file": (file_name, file_content, "application/pdf")}
                 data = {"session_id": self.session_id} if self.session_id else {}
                 
                 response = await client.post(
