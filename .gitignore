@@ -11,6 +11,8 @@ ENV/
 
 # Environment variables
 .env
+*.pdf
+!tests/data/sample.pdf
 
 # IDE
 .vscode/
@@ -35,3 +37,8 @@ Thumbs.db
 *.docx
 Technical Plan*.pdf
 
+
+# Elastic Beanstalk Files
+.elasticbeanstalk/*
+!.elasticbeanstalk/*.cfg.yml
+!.elasticbeanstalk/*.global.yml

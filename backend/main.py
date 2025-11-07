@@ -180,3 +180,15 @@ async def get_pdf_info(session_id: str | None = None):
         "message": f"PDF available with {len(text)} characters",
     }
 
+
+@app.delete("/pdf/remove")
+async def remove_pdf(session_id: str | None = None):
+    """
+    Remove uploaded PDF for this session.
+    """
+    storage_key = session_id or "default"
+    if storage_key in pdf_storage:
+        del pdf_storage[storage_key]
+        return {"success": True, "message": "PDF removed"}
+    return {"success": False, "message": "No PDF to remove"}
+

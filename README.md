@@ -48,3 +48,24 @@ follow the white rabbit
 ```bash
 pytest tests/ -v
 ```
+
+## Deployment
+
+See [AWS_DEPLOYMENT.md](AWS_DEPLOYMENT.md) for AWS deployment options.
+
+## Testing
+
+```bash
+# Run all tests
+pytest tests/ -v
+
+# Expected: 17 tests passing
+# - 9 unit tests (agent, PDF parser)
+# - 8 integration tests (endpoints, streaming, upload flow)
+```
+
+**Quick Test:**
+
+1. Start app: `python run.py`
+2. Open: http://localhost:8080
+3. Upload PDF → Ask question → Verify streaming works

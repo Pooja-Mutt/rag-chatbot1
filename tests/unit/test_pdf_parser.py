@@ -48,43 +48,60 @@ def test_parse_empty_pdf():
 
 
 def test_parse_valid_pdf():
-    """Test parsing extracts text from valid PDF."""
-    # Create a minimal valid PDF with text
-    # This is a simplified PDF structure
-    pdf_content = (
-        b"%PDF-1.4\n"
-        b"1 0 obj\n"
-        b"<< /Type /Catalog /Pages 2 0 R >>\n"
-        b"endobj\n"
-        b"2 0 obj\n"
-        b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>\n"
-        b"endobj\n"
-        b"3 0 obj\n"
-        b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\n"
-        b"endobj\n"
-        b"4 0 obj\n"
-        b"<< /Length 44 >>\n"
-        b"stream\n"
-        b"BT /F1 12 Tf 100 700 Td (Hello World) Tj ET\n"
-        b"endstream\n"
-        b"endobj\n"
-        b"xref\n"
-        b"0 5\n"
-        b"0000000000 65535 f \n"
-        b"trailer\n"
-        b"<< /Size 5 /Root 1 0 R >>\n"
-        b"startxref\n"
-        b"200\n"
-        b"%%EOF\n"
-    )
+    """Test parsing extracts text from valid PDF using real sample file."""
+    from pathlib import Path
     
-    try:
-        text, metadata = PDFParser.parse(pdf_content, "test.pdf")
+    # Try to use real sample PDF from tests/data
+    sample_pdf_path = Path(__file__).parent.parent / "data" / "sample.pdf"
+    
+    if sample_pdf_path.exists():
+        # Use real PDF file
+        with open(sample_pdf_path, "rb") as f:
+            pdf_content = f.read()
+        
+        text, metadata = PDFParser.parse(pdf_content, "sample.pdf")
         assert isinstance(text, str)
+        assert len(text) > 0, "Should extract text from PDF"
         assert isinstance(metadata, PDFMetadata)
         assert metadata.pages > 0
-    except ValueError:
-        # Some PDF parsers may not handle minimal PDFs well
-        # This is acceptable - the structure test is what matters
-        pass
+        assert metadata.text_length > 0
+    else:
+        # Fallback: Create a minimal valid PDF with text
+        # This is a simplified PDF structure
+        pdf_content = (
+            b"%PDF-1.4\n"
+            b"1 0 obj\n"
+            b"<< /Type /Catalog /Pages 2 0 R >>\n"
+            b"endobj\n"
+            b"2 0 obj\n"
+            b"<< /Type /Pages /Kids [3 0 R] /Count 1 >>\n"
+            b"endobj\n"
+            b"3 0 obj\n"
+            b"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] /Contents 4 0 R >>\n"
+            b"endobj\n"
+            b"4 0 obj\n"
+            b"<< /Length 44 >>\n"
+            b"stream\n"
+            b"BT /F1 12 Tf 100 700 Td (Hello World) Tj ET\n"
+            b"endstream\n"
+            b"endobj\n"
+            b"xref\n"
+            b"0 5\n"
+            b"0000000000 65535 f \n"
+            b"trailer\n"
+            b"<< /Size 5 /Root 1 0 R >>\n"
+            b"startxref\n"
+            b"200\n"
+            b"%%EOF\n"
+        )
+        
+        try:
+            text, metadata = PDFParser.parse(pdf_content, "test.pdf")
+            assert isinstance(text, str)
+            assert isinstance(metadata, PDFMetadata)
+            assert metadata.pages > 0
+        except ValueError:
+            # Some PDF parsers may not handle minimal PDFs well
+            # This is acceptable - the structure test is what matters
+            pass
 

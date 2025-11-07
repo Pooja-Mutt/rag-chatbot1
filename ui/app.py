@@ -39,6 +39,8 @@ class ChatApp:
                         auto_upload=True,
                         max_file_size=10 * 1024 * 1024,  # 10MB
                     ).props("accept=.pdf").classes("flex-1")
+                    self.remove_pdf_button = ui.button("Remove PDF", on_click=self.remove_pdf).classes("px-4 bg-red-200")
+                    self.remove_pdf_button.visible = False
             
             # Chat container with scrollable area
             with ui.card().classes("w-full h-96"):
@@ -138,8 +140,29 @@ class ChatApp:
         self.messages.clear()
         if self.chat_container:
             self.chat_container.clear()
-        self.add_message("system", "Chat cleared. Ready for new conversation.")
+        # Note: PDF stays loaded in backend - upload new PDF to replace it
+        self.add_message("system", "Chat cleared. Ready for new conversation. (PDF remains loaded - upload new PDF to replace)")
         self.status_label.text = ""
+    
+    async def remove_pdf(self) -> None:
+        """Remove the currently loaded PDF."""
+        try:
+            async with httpx.AsyncClient(timeout=10.0) as client:
+                response = await client.delete(
+                    f"{API_BASE_URL}/pdf/remove",
+                    params={"session_id": self.session_id} if self.session_id else {},
+                )
+                if response.status_code == 200:
+                    # Clear the upload label - make it prominent
+                    self.upload_label.text = "❌ No PDF uploaded - Ready for new upload"
+                    self.upload_label.classes("text-sm font-bold text-gray-700")
+                    # Hide the remove button
+                    self.remove_pdf_button.visible = False
+                    self.add_message("system", "PDF removed. Upload a new PDF to continue.")
+                else:
+                    self.add_message("error", "Failed to remove PDF")
+        except Exception as e:
+            self.add_message("error", f"Error removing PDF: {str(e)}")
     
     def update_status_async(self, status: str) -> None:
         """Update status label asynchronously."""
@@ -233,20 +256,23 @@ class ChatApp:
             if not file_content and hasattr(uploaded_file, 'path'):
                 file_path = uploaded_file.path
                 
-                # If it's just a filename, try to find it in common locations
-                if file_path and not (os.sep in file_path or '/' in file_path or '\\' in file_path):
-                    # It's just a filename, search for it
+                # If it's a full path, try reading it directly (fastest)
+                if file_path and (os.sep in file_path or '/' in file_path or '\\' in file_path):
+                    if os.path.exists(file_path) and os.path.isfile(file_path):
+                        try:
+                            with open(file_path, "rb") as f:
+                                file_content = f.read()
+                        except Exception:
+                            pass
+                
+                # If it's just a filename, try only common locations (no recursive search)
+                elif file_path and not (os.sep in file_path or '/' in file_path or '\\' in file_path):
+                    # Only check a few common locations (no recursive search - too slow)
                     possible_dirs = [
                         tempfile.gettempdir(),
                         os.path.join(tempfile.gettempdir(), 'nicegui'),
-                        os.path.join(os.getcwd(), 'uploads'),
-                        os.path.join(os.path.expanduser('~'), '.nicegui', 'uploads'),
-                        # Also check NiceGUI's default upload location
-                        os.path.join(os.path.expanduser('~'), 'AppData', 'Local', 'Temp'),
-                        os.path.join('C:', 'Users', os.getenv('USERNAME', ''), 'AppData', 'Local', 'Temp'),
                     ]
                     
-                    # Also try searching recursively in temp directory (last resort)
                     for base_dir in possible_dirs:
                         if os.path.exists(base_dir):
                             full_path = os.path.join(base_dir, file_path)
@@ -257,36 +283,6 @@ class ChatApp:
                                     break
                                 except Exception:
                                     continue
-                    
-                    # If still not found, try searching for files with similar names in temp
-                    if not file_content:
-                        try:
-                            import glob
-                            # Search for files matching the name pattern in temp directory
-                            search_patterns = [
-                                os.path.join(tempfile.gettempdir(), f"*{file_path}*"),
-                                os.path.join(tempfile.gettempdir(), "**", file_path),
-                            ]
-                            for pattern in search_patterns:
-                                matches = glob.glob(pattern, recursive=True)
-                                if matches:
-                                    try:
-                                        with open(matches[0], "rb") as f:
-                                            file_content = f.read()
-                                        break
-                                    except Exception:
-                                        continue
-                        except Exception:
-                            pass
-                
-                # If it's a full path, try reading it directly
-                elif file_path and (os.sep in file_path or '/' in file_path or '\\' in file_path):
-                    if os.path.exists(file_path) and os.path.isfile(file_path):
-                        try:
-                            with open(file_path, "rb") as f:
-                                file_content = f.read()
-                        except Exception:
-                            pass
             
             if not file_content:
                 # Last resort: Try to get file from upload component's internal state
@@ -369,9 +365,12 @@ class ChatApp:
                         file_size_kb = len(file_content) / 1024
                         metadata_display = f"✓ {file_name} ({pages} pages, {file_size_kb:.1f} KB, {text_length:,} chars)"
                         self.upload_label.text = metadata_display
+                        self.upload_label.classes("text-sm text-gray-600")  # Ensure normal style when PDF is loaded
+                        self.remove_pdf_button.visible = True  # Show remove button
                         self.add_message("system", f"PDF uploaded successfully: {file_name}\n📄 {pages} pages | 📊 {text_length:,} characters | 💾 {file_size_kb:.1f} KB")
                     else:
                         self.upload_label.text = f"✓ {result['message']}"
+                        self.remove_pdf_button.visible = True  # Show remove button
                         self.add_message("system", f"PDF uploaded: {result['message']}")
                     
                     self.status_label.text = "PDF uploaded successfully!"
@@ -415,7 +414,7 @@ def main() -> None:
     """Run the NiceGUI app."""
     app = ChatApp()
     app.create_ui()
-    ui.run(port=8080, title="workingAgent Chatbot", show=False)
+    ui.run(port=8080, title="workingAgent Chatbot", show=False, reload=False)
 
 
 # Remove guard to allow multiprocessing (required by NiceGUI)
