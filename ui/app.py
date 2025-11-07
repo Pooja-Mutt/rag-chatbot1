@@ -50,6 +50,7 @@ class ChatApp:
                     placeholder="Type your message...",
                 ).classes("flex-1").on("keydown.enter", self.send_message)
                 ui.button("Send", on_click=self.send_message).classes("px-6")
+                ui.button("Clear Chat", on_click=self.clear_chat).classes("px-4 bg-gray-200")
             
             # Status indicator
             self.status_label = ui.label("").classes("text-sm text-gray-500")
@@ -58,6 +59,9 @@ class ChatApp:
         """Send message and stream response."""
         message = self.input_field.value.strip()
         if not message:
+            self.status_label.text = "Please enter a message"
+            await asyncio.sleep(2)
+            self.status_label.text = ""
             return
         
         # Clear input
@@ -79,7 +83,15 @@ class ChatApp:
                 ) as response:
                     if response.status_code != 200:
                         error_text = await response.aread()
-                        self.add_message("error", f"Error: {response.status_code} - {error_text.decode()}")
+                        error_msg = error_text.decode()
+                        # User-friendly error messages
+                        if response.status_code == 400:
+                            friendly_msg = f"Invalid request: {error_msg}. Please check your message and try again."
+                        elif response.status_code == 500:
+                            friendly_msg = f"Server error occurred. Please try again in a moment."
+                        else:
+                            friendly_msg = f"Error ({response.status_code}): {error_msg}"
+                        self.add_message("error", friendly_msg)
                         self.status_label.text = "Error occurred"
                         return
                     
@@ -105,13 +117,29 @@ class ChatApp:
                     # Update status
                     self.update_status_async("Response complete")
                     
+        except httpx.TimeoutException:
+            self.add_message("error", "Request timed out. Please try again.")
+            self.status_label.text = "Request timed out"
+        except httpx.RequestError as e:
+            self.add_message("error", f"Connection error: Unable to reach the server. Please check if the backend is running.")
+            self.status_label.text = "Connection error"
         except Exception as e:
-            self.add_message("error", f"Error: {str(e)}")
-            self.status_label.text = f"Error: {str(e)}"
+            error_type = type(e).__name__
+            friendly_msg = f"An unexpected error occurred: {error_type}. Please try again."
+            self.add_message("error", friendly_msg)
+            self.status_label.text = f"Error: {error_type}"
         finally:
             # Clear status after a delay
             await asyncio.sleep(2)
             self.status_label.text = ""
+    
+    def clear_chat(self) -> None:
+        """Clear all chat messages."""
+        self.messages.clear()
+        if self.chat_container:
+            self.chat_container.clear()
+        self.add_message("system", "Chat cleared. Ready for new conversation.")
+        self.status_label.text = ""
     
     def update_status_async(self, status: str) -> None:
         """Update status label asynchronously."""
@@ -332,21 +360,51 @@ class ChatApp:
                 
                 if response.status_code == 200:
                     result = response.json()
-                    self.upload_label.text = f"✓ {result['message']}"
+                    metadata = result.get('metadata', {})
+                    
+                    # Display PDF metadata
+                    if metadata:
+                        pages = metadata.get('pages', 0)
+                        text_length = metadata.get('text_length', 0)
+                        file_size_kb = len(file_content) / 1024
+                        metadata_display = f"✓ {file_name} ({pages} pages, {file_size_kb:.1f} KB, {text_length:,} chars)"
+                        self.upload_label.text = metadata_display
+                        self.add_message("system", f"PDF uploaded successfully: {file_name}\n📄 {pages} pages | 📊 {text_length:,} characters | 💾 {file_size_kb:.1f} KB")
+                    else:
+                        self.upload_label.text = f"✓ {result['message']}"
+                        self.add_message("system", f"PDF uploaded: {result['message']}")
+                    
                     self.status_label.text = "PDF uploaded successfully!"
-                    # Add success message to chat
-                    self.add_message("system", f"PDF uploaded: {result['message']}")
                 else:
                     error = response.json().get("detail", "Upload failed")
-                    self.upload_label.text = "Upload failed"
-                    self.status_label.text = f"Error: {error}"
-                    self.add_message("error", f"PDF upload failed: {error}")
+                    # User-friendly error messages
+                    if "not a PDF" in error.lower() or "unsupported" in error.lower():
+                        friendly_msg = f"Invalid file type. Please upload a PDF file (.pdf extension)."
+                    elif "too large" in error.lower() or "size" in error.lower():
+                        friendly_msg = f"File too large. Maximum size is 10MB. Please choose a smaller file."
+                    elif "empty" in error.lower():
+                        friendly_msg = f"File is empty. Please upload a valid PDF file."
+                    else:
+                        friendly_msg = f"Upload failed: {error}. Please try again."
                     
-        except Exception as e:
-            error_msg = f"{type(e).__name__}: {str(e)}"
+                    self.upload_label.text = "Upload failed"
+                    self.status_label.text = friendly_msg
+                    self.add_message("error", friendly_msg)
+                    
+        except httpx.TimeoutException:
             self.upload_label.text = "Upload failed"
-            self.status_label.text = f"Error: {error_msg}"
-            self.add_message("error", f"PDF upload error: {error_msg}")
+            self.status_label.text = "Upload timed out"
+            self.add_message("error", "Upload timed out. Please try again with a smaller file.")
+        except httpx.RequestError:
+            self.upload_label.text = "Upload failed"
+            self.status_label.text = "Connection error"
+            self.add_message("error", "Unable to connect to server. Please check if the backend is running.")
+        except Exception as e:
+            error_type = type(e).__name__
+            friendly_msg = f"Upload error: {error_type}. Please try again."
+            self.upload_label.text = "Upload failed"
+            self.status_label.text = friendly_msg
+            self.add_message("error", friendly_msg)
         finally:
             await asyncio.sleep(3)
             if "successfully" in self.status_label.text.lower():
