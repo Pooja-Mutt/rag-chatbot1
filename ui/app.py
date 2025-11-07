@@ -148,26 +148,21 @@ class ChatApp:
         self.status_label.text = "Uploading PDF..."
         
         try:
-            # NiceGUI upload - e is the upload event, files are accessible via e.sender
-            upload_widget = e.sender
-            
-            # Get uploaded files from the widget
-            # NiceGUI stores files in upload_widget.uploaded_files list
-            uploaded_files = getattr(upload_widget, 'uploaded_files', [])
-            
-            if not uploaded_files:
-                self.status_label.text = "No file selected"
+            # NiceGUI UploadEventArguments has a 'file' attribute of type FileUpload
+            if not hasattr(e, 'file'):
+                self.status_label.text = "Upload failed - no file in event"
+                self.add_message("error", "PDF upload error: No file in upload event")
                 return
             
-            # Get the first uploaded file
-            uploaded_file = uploaded_files[0]
+            uploaded_file = e.file
             file_name = getattr(uploaded_file, 'name', 'document.pdf')
             
-            # Read file content - NiceGUI saves to a temp path
+            # Read file content - NiceGUI saves files to a temporary path
             file_path = getattr(uploaded_file, 'path', None) or getattr(uploaded_file, 'name', None)
             
             if not file_path:
-                self.status_label.text = "Could not find file path"
+                self.status_label.text = "Upload failed - could not find file path"
+                self.add_message("error", "PDF upload error: Could not find file path")
                 return
             
             # Read file content
@@ -175,7 +170,8 @@ class ChatApp:
                 file_content = f.read()
             
             if not file_content:
-                self.status_label.text = "File is empty"
+                self.status_label.text = "Upload failed - file is empty"
+                self.add_message("error", "PDF upload error: File is empty")
                 return
             
             # Upload to backend
@@ -202,9 +198,10 @@ class ChatApp:
                     self.add_message("error", f"PDF upload failed: {error}")
                     
         except Exception as e:
+            error_msg = f"{type(e).__name__}: {str(e)}"
             self.upload_label.text = "Upload failed"
-            self.status_label.text = f"Error: {str(e)}"
-            self.add_message("error", f"PDF upload error: {str(e)}")
+            self.status_label.text = f"Error: {error_msg}"
+            self.add_message("error", f"PDF upload error: {error_msg}")
         finally:
             await asyncio.sleep(3)
             if "successfully" in self.status_label.text.lower():
