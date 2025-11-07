@@ -200,6 +200,8 @@ def main() -> None:
     ui.run(port=8080, title="MyAgent Chatbot", show=False)
 
 
+# Remove guard to allow multiprocessing (required by NiceGUI)
+# This allows run.py to import and call main() directly
 if __name__ in {"__main__", "__mp_main__"}:
     main()
 

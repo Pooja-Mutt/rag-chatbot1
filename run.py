@@ -32,15 +32,24 @@ def main():
         stderr=subprocess.PIPE,
     )
     
-    # Start NiceGUI
+    # Start NiceGUI directly (don't import, just run the file)
     try:
-        from ui.app import main as ui_main
-        ui_main()
+        import subprocess as sp
+        ui_process = sp.Popen(
+            [sys.executable, "ui/app.py"],
+            stdout=sp.PIPE,
+            stderr=sp.PIPE,
+        )
+        # Wait for UI process
+        ui_process.wait()
     except KeyboardInterrupt:
         print("\nShutting down...")
     finally:
         fastapi_process.terminate()
         fastapi_process.wait()
+        if 'ui_process' in locals():
+            ui_process.terminate()
+            ui_process.wait()
 
 
 if __name__ == "__main__":
